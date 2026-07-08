@@ -21,6 +21,7 @@ let NETTO_LIST = [
 // Клиенты без сертификата на импорт
 let NO_CERT_LIST = [
   { num: 13, name: "Слепов Николай" },
+  { num: 22, name: "Механиков Захар" },
   { num: 33, name: "Светлана Тверь" },
   { num: 71, name: "Карен Rodjer" },
   { num: 223, name: "Флорентина" },
@@ -29,6 +30,7 @@ let NO_CERT_LIST = [
   { num: 310, name: "Орленко Василий" },
   { num: 319, name: "Москалев Андрей" },
   { num: 322, name: "Юрьев Сергей" },
+  { num: 388, name: "Хасанова Замиля" },
   { num: 397, name: "Любимов Владимир" },
 ];
 
@@ -80,8 +82,7 @@ function addExc(type) {
   const num = parseInt(prompt(`Введите номер клиента:`), 10);
   if (!num || isNaN(num)) return;
   const name =
-    prompt(`Введите название клиента (для отображения):`) ||
-    `Клиент №${num}`;
+    prompt(`Введите название клиента (для отображения):`) || `Клиент №${num}`;
   if (type === "netto") {
     if (NETTO_SET.has(num)) {
       alert(`Клиент №${num} уже есть в списке нетто.`);
