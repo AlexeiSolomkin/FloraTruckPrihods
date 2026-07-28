@@ -4,6 +4,7 @@
 //  ЗАГРУЗКА ФАЙЛОВ
 // ═══════════════════════════════════════════════════════════════════════════
 let tabelBytes = null;
+let tabelHollandBytes = null;
 let prikhodBytes = null;
 let prikhodName = "";
 let resultBytes = null;
@@ -28,9 +29,7 @@ function setupUpload(inputId, areaId, fnameId, onSuccess) {
     e.preventDefault();
     area.classList.add("drag-over");
   });
-  area.addEventListener("dragleave", () =>
-    area.classList.remove("drag-over"),
-  );
+  area.addEventListener("dragleave", () => area.classList.remove("drag-over"));
   area.addEventListener("drop", (e) => {
     e.preventDefault();
     area.classList.remove("drag-over");
@@ -51,6 +50,10 @@ setupUpload("fileT", "areaT", "fnameT", (b) => {
   tabelBytes = b;
   checkReady();
 });
+setupUpload("fileTHolland", "areaTHolland", "fnameTHolland", (b) => {
+  tabelHollandBytes = b;
+  checkReady();
+});
 setupUpload("fileP", "areaP", "fnameP", (b, n) => {
   prikhodBytes = b;
   prikhodName = n;
@@ -59,7 +62,8 @@ setupUpload("fileP", "areaP", "fnameP", (b, n) => {
 
 function checkReady() {
   document.getElementById("btnProcess").disabled = !(
-    tabelBytes && prikhodBytes
+    prikhodBytes &&
+    (tabelHollandBytes || tabelBytes)
   );
 }
 

@@ -1,14 +1,14 @@
 "use strict";
 
-// ═══════════════════════════════════════════════════════════════════════════
-//  ЗАПОЛНЕНИЕ ПРИХОДА ДЛЯ ИМПОРТА(JSZip + DOMParser — стили не трогаем)
-// ═══════════════════════════════════════════════════════════════════════════
-const SKIP_SHEETS = new Set(["тарифы", "!!!!!", "TOTAL", "образец"]);
-const SECTIONS = {
-  ЭКВАДОР: { awbR: 35, wtR: 36, bxR: 37, label: "КОНСОЛЬ ЭКВАДОР" },
-  КОЛУМБИЯ: { awbR: 42, wtR: 43, bxR: 45, label: "КОНСОЛЬ КОЛУМБИЯ" },
-  ИМПОРТ: { awbR: 50, wtR: 51, bxR: 52, label: "ИМПОРТ" },
+const SECTIONS_HOLLAND = {
+  СРЕЗКА: { markR: 66, bxR: 67, cartsR: 206, label: "ГОЛЛАНДИЯ СТАНДАРТ" },
+  ЗЕЛЕНЬ: { markR: 133, bxR: 145, cartsR: 208, label: "ЗЕЛЕНЬ" },
+  ГОРШКИ: { markR: 193, bxR: 194, cartsR: 207, label: "ГОРШКИ" }, // данных пока нет, просто задел
 };
+
+// Строка "Маркировка" таблицы ТЕЛЕГИ / СС — общая на все три типа груза
+// (206/207/208 — это уже строки с числом телег конкретного типа)
+const CARTS_MARK_ROW = 205;
 
 // Парсим номер машины из имени файла Прихода: ищем "ам <число>"
 function parseMachineFromPrikhod(filename) {
@@ -16,7 +16,10 @@ function parseMachineFromPrikhod(filename) {
   return m ? m[1] : null;
 }
 
-async function fillPrikhod(prikhodBytes, clientData, machineNum) {
+// ═══════════════════════════════════════════════════════════════════════════
+//  ЗАПОЛНЕНИЕ ПРИХОДА ДЛЯ ГОЛЛАНДИИ (JSZip + DOMParser — стили не трогаем)
+// ═══════════════════════════════════════════════════════════════════════════
+async function fillPrikhodHolland(prikhodBytes, clientData, machineNum) {
   const zip = await JSZip.loadAsync(prikhodBytes);
 
   const wbXml = await zip.file("xl/workbook.xml").async("string");
@@ -25,8 +28,6 @@ async function fillPrikhod(prikhodBytes, clientData, machineNum) {
 
   const fillLog = [],
     warnings = [];
-  const nettoExcLog = [],
-    certExcLog = [];
   const parser = new DOMParser(),
     serial = new XMLSerializer();
   let processed = 0;
@@ -63,7 +64,6 @@ async function fillPrikhod(prikhodBytes, clientData, machineNum) {
 
   for (const [sheetName, xmlPath] of Object.entries(sheetMap)) {
     const trimmed = sheetName.trim();
-    if (SKIP_SHEETS.has(trimmed)) continue;
     const m = trimmed.match(/^(\d+)/);
     if (!m) continue;
     const clientNum = parseInt(m[1]);
@@ -93,14 +93,15 @@ async function fillPrikhod(prikhodBytes, clientData, machineNum) {
       "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
     // Группируем по типу
-    const byType = { ЭКВАДОР: [], КОЛУМБИЯ: [], ИМПОРТ: [] };
+    const byType = { СРЕЗКА: [], ЗЕЛЕНЬ: [], ГОРШКИ: [] };
     for (const e of entries) {
       if (byType[e.type]) byType[e.type].push(e);
     }
 
     const descParts = [];
+    let cartsCol = 0; // сквозной счётчик колонок таблицы ТЕЛЕГИ / СС (общий на все типы)
 
-    for (const [typeName, sec] of Object.entries(SECTIONS)) {
+    for (const [typeName, sec] of Object.entries(SECTIONS_HOLLAND)) {
       const ents = byType[typeName];
       if (!ents.length) continue;
 
@@ -108,67 +109,31 @@ async function fillPrikhod(prikhodBytes, clientData, machineNum) {
         const e = ents[idx];
         const col = idxToCol(4 + idx); // E, F, G, ...
 
-        // AWB (с учётом ведущего нуля)
-        setCellValue(doc, ns, col, sec.awbR, awbDisplayVal(e.digits4));
+        // маркировка — пишем всегда, колонка занята записью
+        setCellValue(doc, ns, col, sec.markR, e.mark);
+        // коробки — только если реально есть, иначе оставляем пусто вместо 0
+        if (e.boxes) setCellValue(doc, ns, col, sec.bxR, e.boxes);
 
-        // Вес: для ИМПОРТ-исключений пробуем нетто
-        let weight;
-        if (NETTO_SET.has(clientNum) && typeName === "ИМПОРТ") {
-          if (e.netto > 0) {
-            weight = e.netto;
-            nettoExcLog.push({
-              num: clientNum,
-              name: clientName,
-              awb: e.awb,
-              weight,
-              usedBrutto: false,
-            });
-          } else {
-            weight = e.brutto;
-            nettoExcLog.push({
-              num: clientNum,
-              name: clientName,
-              awb: e.awb,
-              weight,
-              usedBrutto: true,
-            });
-          }
-        } else {
-          weight = e.brutto;
+        // телеги идут в отдельную компактную таблицу ТЕЛЕГИ / СС —
+        // маркировка (строка 205, общая) + число (строка типа) в одну и ту же
+        // колонку; колонка расходуется, только если телеги реально есть
+        if (e.carts) {
+          const cartsCode = idxToCol(4 + cartsCol);
+          setCellValue(doc, ns, cartsCode, CARTS_MARK_ROW, e.mark);
+          setCellValue(doc, ns, cartsCode, sec.cartsR, e.carts);
+          cartsCol++;
         }
-        setCellValue(doc, ns, col, sec.wtR, weight);
-        setCellValue(doc, ns, col, sec.bxR, e.boxes);
       }
       descParts.push(`${sec.label}×${ents.length}`);
       if (ents.length > 10)
         warnings.push(
-          `Клиент ${clientNum} (${typeName}): ${ents.length} AWB — проверьте диапазон формулы`,
+          `Клиент ${clientNum} (${typeName}): кол-во маркировок ${ents.length} — проверьте диапазон формулы`,
         );
     }
-
-    // Сертификат → B29
-    const certCount = calcCertCount(clientNum, byType, clientData);
-    setCellValue(doc, ns, "B", 29, certCount);
-
-    // Логируем серт-исключения
-    if (byType["ИМПОРТ"].length > 0 && certCount === 0) {
-      const awbs = byType["ИМПОРТ"].map((e) => "…" + e.digits4).join(", ");
-      if (NO_CERT_SET.has(clientNum)) {
-        certExcLog.push({
-          num: clientNum,
-          name: clientName,
-          reason: null,
-          awbs,
-        });
-      } else if (clientNum === ALBERT_NUM) {
-        certExcLog.push({
-          num: clientNum,
-          name: clientName,
-          reason: `в одном авб с Олегом №${OLEG_NUM}`,
-          awbs,
-        });
-      }
-    }
+    if (cartsCol > 10)
+      warnings.push(
+        `Клиент ${clientNum}: кол-во телег в таблице ТЕЛЕГИ / СС ${cartsCol} — проверьте диапазон формулы`,
+      );
 
     // Сериализуем XML
     let newXml = serial.serializeToString(doc);
@@ -181,7 +146,7 @@ async function fillPrikhod(prikhodBytes, clientData, machineNum) {
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n' + newXml;
     zip.file(xmlPath, newXml);
 
-    fillLog.push(`✓ «${trimmed}»: ${descParts.join(", ")}, серт=${certCount}`);
+    fillLog.push(`✓ «${trimmed}»: ${descParts.join(", ")}`);
     processed++;
   }
 
@@ -199,26 +164,5 @@ async function fillPrikhod(prikhodBytes, clientData, machineNum) {
     compression: "DEFLATE",
     compressionOptions: { level: 6 },
   });
-  return { bytes: outBytes, fillLog, warnings, nettoExcLog, certExcLog };
-}
-
-// Расчёт сертификата с учётом исключений
-function calcCertCount(clientNum, byType, clientData) {
-  if (NO_CERT_SET.has(clientNum)) return 0;
-
-  const importEnts = byType["ИМПОРТ"];
-  if (!importEnts.length) return 0;
-
-  // Спецправило: Альберт (86) в одном авб с Олегом (62) → 0 сертов у Альберта
-  if (clientNum === ALBERT_NUM) {
-    const olegEnts = clientData[OLEG_NUM];
-    if (olegEnts) {
-      const olegAwbs = new Set(
-        olegEnts.filter((e) => e.type === "ИМПОРТ").map((e) => e.awb),
-      );
-      if (importEnts.some((e) => olegAwbs.has(e.awb))) return 0;
-    }
-  }
-
-  return importEnts.length;
+  return { bytes: outBytes, fillLog, warnings };
 }
