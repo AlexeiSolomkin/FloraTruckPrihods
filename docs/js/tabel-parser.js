@@ -22,11 +22,11 @@ function parseTabel(wb) {
   const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
 
   // Номер машины
-  let machineNum = "???";
+  let tabelMachineNum = "???";
   for (const row of rows) {
     if (row[0] === "Номер машины" && row[1]) {
       const m = String(row[1]).match(/\d+/);
-      machineNum = m ? m[0] : String(row[1]);
+      tabelMachineNum = m ? m[0] : String(row[1]);
       break;
     }
   }
@@ -39,8 +39,7 @@ function parseTabel(wb) {
       break;
     }
   }
-  if (hdrIdx < 0)
-    throw new Error("Не найден заголовок «№ Клиента» в Табеле");
+  if (hdrIdx < 0) throw new Error("Не найден заголовок «№ Клиента» в Табеле");
 
   // ── Главная таблица ──
   const mainRows = [];
@@ -125,8 +124,7 @@ function parseTabel(wb) {
     }
 
     if (colF === "№ Клиента") {
-      if (curSub !== null)
-        subTables.push({ rows: curSub, amNum: curSubAmNum });
+      if (curSub !== null) subTables.push({ rows: curSub, amNum: curSubAmNum });
       curSub = [];
       curSubAmNum = nextSubAmNum; // маркер, стоявший перед этим заголовком
       nextSubAmNum = null;
@@ -215,7 +213,7 @@ function parseTabel(wb) {
 
     // Проверяем маркер «В ПРИХОДЕ АМ X»
     if (sub.amNum !== null) {
-      if (sub.amNum !== machineNum) {
+      if (sub.amNum !== tabelMachineNum) {
         // Поставка идёт в другую машину — пропускаем
         splitLog.push({ awb: mr.awb, amNum: sub.amNum, included: false });
         continue;
@@ -242,20 +240,12 @@ function parseTabel(wb) {
     }
 
     for (const [cn, g] of Object.entries(grouped))
-      addEntry(
-        Number(cn),
-        g.awb,
-        mr.country,
-        g.brutto,
-        g.netto,
-        g.boxes,
-        tt,
-      );
+      addEntry(Number(cn), g.awb, mr.country, g.brutto, g.netto, g.boxes, tt);
   }
 
   // Одноклиентские консолидации — пропускаем
   for (const r of mainRows.filter((r) => r.isYellow && r.isSingle))
     skippedKons.push({ awb: r.awb, clientName: r.clientName });
 
-  return { machineNum, clientData, skippedKons, splitLog };
+  return { tabelMachineNum, clientData, skippedKons, splitLog };
 }

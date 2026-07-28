@@ -237,16 +237,31 @@
       </div>
 
       <!-- Шаг 1 -->
-      <div class="card">
-        <div class="card-title">Шаг 1 — Загрузи Табель импорта</div>
-        <div class="upload-wrap" id="areaT">
-          <input type="file" id="fileT" accept=".xlsx,.xls" />
-          <div class="upload-icon">📋</div>
-          <div class="upload-hint">
-            <strong>Перетащи файл или нажми для выбора</strong><br />Формат:
-            Табель №АМ и для склада.xlsx
+      <div class="card-holland-import">
+        <div class="card">
+          <div class="card-title">Шаг 1.1 — Загрузи Табель импорта</div>
+          <div class="upload-wrap" id="areaT">
+            <input type="file" id="fileT" accept=".xlsx,.xls" />
+            <div class="upload-icon">📋</div>
+            <div class="upload-hint">
+              <strong>Перетащи файл или нажми для выбора</strong><br />Формат:
+              Табель №АМ и для склада.xlsx
+            </div>
+            <div class="upload-fname" id="fnameT"></div>
           </div>
-          <div class="upload-fname" id="fnameT"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Шаг 1.2 — Загрузи Табель Голландии</div>
+          <div class="upload-wrap" id="areaTHolland">
+            <input type="file" id="fileTHolland" accept=".xlsx,.xls" />
+            <div class="upload-icon">📋</div>
+            <div class="upload-hint">
+              <strong>Перетащи файл или нажми для выбора</strong><br />Формат:
+              Табель №АМ г для склада.xlsx
+            </div>
+            <div class="upload-fname" id="fnameTHolland"></div>
+          </div>
         </div>
       </div>
 
@@ -334,7 +349,9 @@
     <script src="js/exceptions.js"></script>
     <script src="js/xml-utils.js"></script>
     <script src="js/tabel-parser.js"></script>
+    <script src="js/tabel-parser-holland.js"></script>
     <script src="js/prihod-filler.js"></script>
+    <script src="js/prihod-filler-holland.js"></script>
     <script src="js/upload.js"></script>
     <script src="js/main.js"></script>
   </body>

@@ -34,8 +34,7 @@ function setCellValue(doc, ns, colLetter, rowNum, value) {
   // Найти / создать строку
   const allRows = Array.from(doc.getElementsByTagName("row"));
   let row =
-    allRows.find((r) => parseInt(r.getAttribute("r"), 10) === rowNum) ||
-    null;
+    allRows.find((r) => parseInt(r.getAttribute("r"), 10) === rowNum) || null;
   if (!row) {
     row = doc.createElementNS(ns, "row");
     row.setAttribute("r", String(rowNum));
