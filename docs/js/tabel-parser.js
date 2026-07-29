@@ -43,6 +43,11 @@ function parseTabel(wb) {
 
   // ── Главная таблица ──
   const mainRows = [];
+  // amNum, прочитанный из маркера «В ПРИХОДЕ АМ X», ожидает следующую суб-таблицу.
+  // Объявлен здесь (а не только у суб-таблиц ниже), т.к. маркер перед ПЕРВОЙ
+  // суб-таблицей встречается ещё в хвосте главной таблицы — иначе он молча
+  // терялся, и разбивка на машины для первой суб-таблицы игнорировалась.
+  let nextSubAmNum = null;
   let i = hdrIdx + 1;
   while (i < rows.length) {
     const row = rows[i];
@@ -53,6 +58,18 @@ function parseTabel(wb) {
       date = row[3];
 
     if (!awb && !date && colF === null && colG === null) {
+      i++;
+      continue;
+    }
+    // Маркер «В ПРИХОДЕ АМ X» перед суб-таблицей — может встретиться уже
+    // здесь, если это маркер для ПЕРВОЙ суб-таблицы
+    if (
+      typeof colF === "string" &&
+      colF !== "№ Клиента" &&
+      /В ПРИХОДЕ АМ/i.test(colF)
+    ) {
+      const m2 = colF.match(/(\d+)/);
+      nextSubAmNum = m2 ? m2[1] : null;
       i++;
       continue;
     }
@@ -87,7 +104,7 @@ function parseTabel(wb) {
           .toUpperCase(),
         boxes: typeof colI === "number" ? colI : 0,
         brutto: typeof row[13] === "number" ? row[13] : 0,
-        netto: typeof row[12] === "number" ? row[12] : 0, // нетто из главной таблицы
+        netto: typeof row[12] === "number" ? row[12] : null, // null = нетто не заполнено
         isYellow: colF === null,
         isKons,
         isMix,
@@ -105,7 +122,7 @@ function parseTabel(wb) {
   const subTables = [];
   let curSub = null;
   let curSubAmNum = null; // amNum для текущей собираемой суб-таблицы
-  let nextSubAmNum = null; // amNum, прочитанный из маркера, ожидает следующую суб-таблицу
+  // nextSubAmNum уже объявлен выше, при парсинге главной таблицы
   while (i < rows.length) {
     const row = rows[i];
     const colF = row[5],
@@ -137,7 +154,7 @@ function parseTabel(wb) {
         awb: String(row[10] || "").trim(),
         boxes: typeof colI === "number" ? colI : 0,
         brutto: typeof row[13] === "number" ? row[13] : 0,
-        netto: typeof row[12] === "number" ? row[12] : 0, // может быть 0 если пустое
+        netto: typeof row[12] === "number" ? row[12] : null, // null = нетто не заполнено
       });
       i++;
       continue;
@@ -174,7 +191,10 @@ function parseTabel(wb) {
     if (ex) {
       ex.boxes += boxes;
       ex.brutto += brutto;
-      ex.netto += netto;
+      // null = нетто не заполнено хотя бы у одной из объединяемых записей —
+      // тогда сумме доверять нельзя (иначе реальное нетто "маскирует"
+      // потерянный вес отсутствующей части), дальше сработает фолбэк на брутто
+      ex.netto = ex.netto === null || netto === null ? null : ex.netto + netto;
     } else
       clientData[cn].push({
         awb,
@@ -236,7 +256,11 @@ function parseTabel(wb) {
         };
       grouped[cn].boxes += sr.boxes;
       grouped[cn].brutto += sr.brutto;
-      grouped[cn].netto += sr.netto; // суммируем нетто из суб-таблицы (может быть 0)
+      // null = нетто не заполнено хотя бы в одной из строк суб-таблицы
+      grouped[cn].netto =
+        grouped[cn].netto === null || sr.netto === null
+          ? null
+          : grouped[cn].netto + sr.netto;
     }
 
     for (const [cn, g] of Object.entries(grouped))

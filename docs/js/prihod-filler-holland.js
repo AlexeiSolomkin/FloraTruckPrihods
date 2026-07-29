@@ -47,7 +47,7 @@ async function fillPrikhodHolland(prikhodBytes, clientData, machineNum) {
         const bangNs =
           bangSd.namespaceURI ||
           "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-        setCellValue(bangDoc, bangNs, "C", 2, parseInt(machineNum, 10) || 0);
+        setCellValue(bangDoc, bangNs, "C", 2, machineNumCellValue(machineNum));
         let bangXml = serial.serializeToString(bangDoc);
         bangXml = bangXml.replace(
           /^<\?xml[^?]*\?>/,

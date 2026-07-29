@@ -126,6 +126,13 @@ function awbDisplayVal(digits4) {
   return digits4.startsWith("0") ? "." + digits4 : parseInt(digits4, 10);
 }
 
+// Значение для ячейки номера машины: если есть ведущий ноль — пишем строкой
+// (иначе Excel/parseInt съедает его, "0230" → 230)
+function machineNumCellValue(machineNum) {
+  const s = String(machineNum);
+  return /^0\d/.test(s) ? s : parseInt(s, 10) || 0;
+}
+
 // Индекс → буква (0→A, 4→E, ...)
 function idxToCol(idx) {
   let n = idx + 1,
